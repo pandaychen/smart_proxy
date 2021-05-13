@@ -1,13 +1,14 @@
 package backend
 
 import (
+	"github.com/pandaychen/smart_proxy/enums"
 	"github.com/uber-go/atomic"
 )
 
 //	Operation on backend
 type BackendOption struct {
-	target BackendNode
-	op     enums.BACKEND_OPTION
+	Target BackendNode
+	Op     enums.BACKEND_OPTION
 }
 
 type BackendNode struct {
@@ -22,7 +23,7 @@ type BackendNodePool interface {
 	Size() int
 
 	// get a usable backend nodes from pool
-	Get() *BackendNode
+	Pick() *BackendNode
 
 	// add a backend node to pool
 	Add(addr string)

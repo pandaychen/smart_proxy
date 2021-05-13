@@ -40,7 +40,7 @@ func NewEtcdDiscoveryClient(logger *zap.Logger, scheduler *scheduler.SmartProxyS
 
 func (e *EtcdDiscoveryClient) Run() {
 
-	datalist, err := e.Client.GetKeyPrefixValues(e.Client.Context, e.WatchPrefix, clientv3.WithPrefix())
+	datalist, err := e.Client.GetKeyPrefixValues(e.Client.Context, e.WatchPrefix)
 	if err != nil {
 		e.Logger.Error("EtcdDiscoveryClient Run error", zap.String("errmsg", err.Error()))
 		return
@@ -48,11 +48,11 @@ func (e *EtcdDiscoveryClient) Run() {
 
 	for key, value := range datalist {
 		backendnode := backend.BackendOption{
-			target: backend.BackendNode{
-				State:    atomic.NewBool(true),
+			Target: backend.BackendNode{
+				State:    *atomic.NewBool(true),
 				Addr:     value,
 				Metadata: key},
-			op: enums.BACKEND_ADD,
+			Op: enums.BACKEND_ADD,
 		}
 		e.Scheduler.BackendChan <- backendnode
 	}
