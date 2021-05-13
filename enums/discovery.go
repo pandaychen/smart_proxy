@@ -1,0 +1,9 @@
+package enums
+
+type DISCOVERY_TYPE string
+
+var (
+	DNS_DISCOVERY    DISCOVERY_TYPE = "dns"
+	ETCD_DISCOVERY   DISCOVERY_TYPE = "etcd"
+	CONSUL_DISCOVERY DISCOVERY_TYPE = "consul"
+)
