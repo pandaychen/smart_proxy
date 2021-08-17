@@ -5,7 +5,7 @@ import (
 
 	"smart_proxy/backend"
 	"smart_proxy/enums"
-	etcdtool "smart_proxy/etcd_tools"
+	etcdtool "smart_proxy/pkg/etcd_tools"
 	"smart_proxy/scheduler"
 
 	//	"github.com/uber-go/atomic"
