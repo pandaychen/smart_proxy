@@ -24,7 +24,7 @@ type TlsConfig struct {
 }
 
 // ProxyService for loadbalance to backend pools
-type SmartProxyService struct {
+type SmartProxyReverse struct {
 	sync.RWMutex
 	TlsConfig
 	IsTlsOn      bool
@@ -51,9 +51,9 @@ type SmartProxyService struct {
 }
 
 // 初始化
-func NewSmartProxyService(options ...SmartProxyServiceOption) (*SmartProxyService, error) {
+func NewSmartProxyReverse(options ...SmartProxyReverseOption) (*SmartProxyReverse, error) {
 	logger, _ := zaplog.ZapLoggerInit(DEFAULT_SERVICE_NAME)
-	sps := &SmartProxyService{
+	sps := &SmartProxyReverse{
 		ReverseProxyMap: make(map[string]*httputil.ReverseProxy),
 		Logger:          logger,
 	}
@@ -78,7 +78,7 @@ func NewSmartProxyService(options ...SmartProxyServiceOption) (*SmartProxyServic
 }
 
 // 分发前置请求到合适的后端节点
-func (s *SmartProxyService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *SmartProxyReverse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rsp, err := s.ChooseOneReverseProxy("")
 	if err != nil {
 		s.Logger.Error("ServeHTTP-ChooseOneReverseProxy err", zap.String("errmsg", err.Error()))
@@ -89,7 +89,7 @@ func (s *SmartProxyService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rsp.ServeHTTP(w, r)
 }
 
-func (s *SmartProxyService) ChooseOneReverseProxy(proxy_key string) (*httputil.ReverseProxy, error) {
+func (s *SmartProxyReverse) ChooseOneReverseProxy(proxy_key string) (*httputil.ReverseProxy, error) {
 	defer s.ReverseProxyMapLock.RUnlock()
 	s.ReverseProxyMapLock.RLock()
 	rsp, exists := s.ReverseProxyMap[proxy_key]

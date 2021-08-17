@@ -47,13 +47,14 @@ func (e *EtcdDiscoveryClient) Run() {
 	}
 
 	for key, value := range datalist {
-		backendnode := backend.BackendOption{
+		backendnode := backend.BackendNodeOperator{
 			Target: backend.BackendNode{
 				State:    *atomic.NewBool(true),
 				Addr:     value,
 				Metadata: key},
 			Op: enums.BACKEND_ADD,
 		}
+		//send to scheduler's channel
 		e.Scheduler.BackendChan <- backendnode
 	}
 
@@ -64,7 +65,7 @@ func (e *EtcdDiscoveryClient) Run() {
 		rch := e.Client.Watch(context.Background(), e.WatchPrefix, clientv3.WithPrefix())
 		for resp := range rch {
 			for _, ev := range resp.Events {
-				e.Logger.Info("EtcdDiscoveryClient get events", zap.Any("events", ev))
+				e.Logger.Info("EtcdDiscoveryClient get loadbalance events", zap.Any("events", ev))
 			}
 		}
 	}

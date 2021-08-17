@@ -6,7 +6,7 @@ import (
 )
 
 //	Operation on backend
-type BackendOption struct {
+type BackendNodeOperator struct {
 	Target BackendNode
 	Op     enums.BACKEND_OPTION
 }
