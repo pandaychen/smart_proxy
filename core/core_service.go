@@ -9,10 +9,12 @@ package core
 import (
 	"os"
 	"os/signal"
+	etcdw "smart_proxy/discovery/etcd"
 	"smart_proxy/scheduler"
 	"syscall"
 
 	"github.com/pandaychen/goes-wrapper/zaplog"
+
 	"go.uber.org/zap"
 )
 
@@ -20,6 +22,7 @@ import (
 type SmartProxyService struct {
 	Scheduler *scheduler.SmartProxyScheduler // 核心调度器
 	Logger    *zap.Logger
+	Etcder    *etcdw.EtcdDiscoveryClient
 }
 
 // 创建 SmartProxyService 的所有组件
@@ -28,11 +31,13 @@ func NewSmartProxyService() (*SmartProxyService, error) {
 	if err != nil {
 		panic(err)
 	}
-	scheduler_svc, _ := scheduler.NewSmartProxyScheduler(nil)
+	scheduler_svc, _ := scheduler.NewSmartProxyScheduler(logger)
+	etcder, _ := etcdw.NewEtcdDiscoveryClient(logger, scheduler_svc, "/test/")
 
 	svc := &SmartProxyService{
 		Scheduler: scheduler_svc,
 		Logger:    logger,
+		Etcder:    etcder,
 	}
 
 	return svc, nil
@@ -44,6 +49,7 @@ func (s *SmartProxyService) RunLoop() error {
 	signal.Notify(sigC, os.Interrupt, syscall.SIGTERM)
 
 	s.Scheduler.SchedulerLoopRun()
+	s.Etcder.Run()
 
 	<-sigC
 	return nil

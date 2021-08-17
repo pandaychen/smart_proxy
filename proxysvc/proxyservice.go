@@ -9,8 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	zaplog "github.com/pandaychen/goes-wrapper/zaplog"
-	"github.com/pandaychen/smart_proxy/backend"
-	"github.com/pandaychen/smart_proxy/enums"
+	"smart_proxy/backend"
+	"smart_proxy/enums"
 	"go.uber.org/zap"
 )
 

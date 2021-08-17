@@ -1,8 +1,8 @@
 package backend
 
 import (
-	"github.com/pandaychen/smart_proxy/enums"
-	"github.com/uber-go/atomic"
+	"smart_proxy/enums"
+	//	"github.com/uber-go/atomic"
 )
 
 //	Operation on backend
@@ -12,7 +12,8 @@ type BackendNodeOperator struct {
 }
 
 type BackendNode struct {
-	State    atomic.Bool //https://pkg.go.dev/go.uber.org/atomic
+	//State    atomic.Bool //https://pkg.go.dev/go.uber.org/atomic
+	State    bool
 	Addr     string
 	Metadata string //metadata元数据
 }

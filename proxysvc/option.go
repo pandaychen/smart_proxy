@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/pandaychen/smart_proxy/enums"
+	"smart_proxy/enums"
 )
 
 // common options setter

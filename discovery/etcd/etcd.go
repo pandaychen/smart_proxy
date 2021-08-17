@@ -3,13 +3,14 @@ package etcd
 import (
 	"context"
 
-	etcdtool "github.com/pandaychen/etcd_tools"
-	"github.com/pandaychen/smart_proxy/backend"
-	"github.com/pandaychen/smart_proxy/enums"
-	"github.com/pandaychen/smart_proxy/scheduler"
+	"smart_proxy/backend"
+	"smart_proxy/enums"
+	etcdtool "smart_proxy/etcd_tools"
+	"smart_proxy/scheduler"
 
-	"github.com/uber-go/atomic"
-	"go.etcd.io/etcd/clientv3"
+	//	"github.com/uber-go/atomic"
+	"go.etcd.io/etcd/api/v3/mvccpb"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 )
 
@@ -49,7 +50,8 @@ func (e *EtcdDiscoveryClient) Run() {
 	for key, value := range datalist {
 		backendnode := backend.BackendNodeOperator{
 			Target: backend.BackendNode{
-				State:    *atomic.NewBool(true),
+				//State:    *atomic.NewBool(true),
+				State:    true,
 				Addr:     value,
 				Metadata: key},
 			Op: enums.BACKEND_ADD,
@@ -66,6 +68,25 @@ func (e *EtcdDiscoveryClient) Run() {
 		for resp := range rch {
 			for _, ev := range resp.Events {
 				e.Logger.Info("EtcdDiscoveryClient get loadbalance events", zap.Any("events", ev))
+				var backendnode backend.BackendNodeOperator
+				if ev.Type == mvccpb.DELETE {
+					backendnode = backend.BackendNodeOperator{
+						Target: backend.BackendNode{
+							State:    true,
+							Addr:     string(ev.Kv.Key),
+							Metadata: string(ev.Kv.Value)},
+						Op: enums.BACKEND_DEL,
+					}
+				} else {
+					backendnode = backend.BackendNodeOperator{
+						Target: backend.BackendNode{
+							State:    true,
+							Addr:     string(ev.Kv.Key),
+							Metadata: string(ev.Kv.Value)},
+						Op: enums.BACKEND_ADD,
+					}
+				}
+				e.Scheduler.BackendChan <- backendnode
 			}
 		}
 	}

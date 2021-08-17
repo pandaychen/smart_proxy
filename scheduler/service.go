@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	"github.com/pandaychen/smart_proxy/backend"
+	"smart_proxy/backend"
 	"go.uber.org/zap"
 )
 

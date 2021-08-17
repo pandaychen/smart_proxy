@@ -1,8 +1,8 @@
 package wrr
 
 import (
-	"github.com/pandaychen/smart_proxy/backend"
-	"github.com/uber-go/atomic"
+	"smart_proxy/backend"
+	//	"github.com/uber-go/atomic"
 )
 
 type BackendNodeWrapper struct {
@@ -15,8 +15,9 @@ type BackendNodeWrapper struct {
 func CreateWrrBackendNode(addr string, weight int) *BackendNodeWrapper {
 	return &BackendNodeWrapper{
 		backend.BackendNode{
-			State: *atomic.NewBool(true),
-			Addr:  addr,
+			State: true,
+			//State: *atomic.NewBool(true),
+			Addr: addr,
 		},
 		InitWeight:      weight,
 		CurrentWeight:   0,
