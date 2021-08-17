@@ -11,13 +11,13 @@ var GlobalScheduler *SmartProxyScheduler
 type SmartProxyScheduler struct {
 
 	/* Backend operation channel */
-	BackendChan chan backend.BackendOption
+	BackendChan chan backend.BackendNodeOperator
 	Logger      *zap.Logger
 }
 
 func NewSmartProxyScheduler(logger *zap.Logger) (*SmartProxyScheduler, error) {
 	sch := &SmartProxyScheduler{
-		BackendChan: make(chan backend.BackendOption),
+		BackendChan: make(chan backend.BackendNodeOperator),
 		Logger:      logger,
 	}
 	return sch, nil
