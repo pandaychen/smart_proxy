@@ -1,24 +1,23 @@
 package scheduler
 
 import (
-	"smart_proxy/backend"
 	"go.uber.org/zap"
+	"smart_proxy/backend"
 )
 
 var GlobalScheduler *SmartProxyScheduler
 
 // smartproxy controller
 type SmartProxyScheduler struct {
-
 	/* Backend operation channel */
 	BackendChan chan backend.BackendNodeOperator
 	Logger      *zap.Logger
 }
 
-func NewSmartProxyScheduler(logger *zap.Logger) (*SmartProxyScheduler, error) {
+func NewSmartProxyScheduler(logger *zap.Logger, dis2schChan chan backend.BackendNodeOperator) (*SmartProxyScheduler, error) {
 	sch := &SmartProxyScheduler{
-		BackendChan: make(chan backend.BackendNodeOperator),
 		Logger:      logger,
+		BackendChan: dis2schChan,
 	}
 	return sch, nil
 }
@@ -33,7 +32,6 @@ func (s *SmartProxyScheduler) SchedulerLoopRun() {
 			// handle backend operation
 			case backend := <-s.BackendChan:
 				s.Logger.Info("SchedulerLoopRun handle backendChan", zap.Any("backend", backend))
-				//
 			}
 		}
 	}()

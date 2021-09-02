@@ -28,7 +28,7 @@ func WithProxysvcAddr(addr string) SmartReverseProxyOption {
 //IsSafeHttpSig
 func WithHttpSigOn() SmartReverseProxyOption {
 	return func(s *SmartReverseProxy) error {
-		s.IsSafeHttpSig = true
+		s.IsSafeHttpSigOn = true
 		return nil
 	}
 }
@@ -57,14 +57,14 @@ func WithTlsOn(certfile, keyfile string) SmartReverseProxyOption {
 }
 
 func WithTimeout(timeout time.Duration) SmartReverseProxyOption {
-	return func(s *SmartProxyReverse) error {
+	return func(s *SmartReverseProxy) error {
 		s.TimeOut = timeout
 		return nil
 	}
 }
 
 func WithDiscoveryType(dis enums.DISCOVERY_TYPE) SmartReverseProxyOption {
-	return func(s *SmartProxyReverse) error {
+	return func(s *SmartReverseProxy) error {
 		s.DiscoveryName = dis
 		return nil
 	}

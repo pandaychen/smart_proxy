@@ -3,13 +3,16 @@ package main
 //主程序入口
 
 import (
+	"smart_proxy/config"
 	"smart_proxy/core"
-	//"smart_proxy/config"
 )
 
 func StartService() {
 	//初始化代理的config
-	sp_svc, err := core.NewSmartProxyService()
+	config.LoadSmartproxyConfig("smartproxy.yaml")
+	gConf := config.GetSmartproxyConf()
+
+	sp_svc, err := core.NewSmartProxyService(gConf)
 	if err != nil {
 		panic(err)
 	}

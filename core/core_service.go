@@ -8,7 +8,12 @@ package core
 import (
 	"os"
 	"os/signal"
-	etcdw "smart_proxy/discovery/etcd"
+	"smart_proxy/backend"
+	"smart_proxy/config"
+
+	//etcdw "smart_proxy/discovery/etcd"
+	"smart_proxy/discovery"
+	"smart_proxy/healthy"
 	"smart_proxy/manager"
 	"smart_proxy/reverseproxy"
 	"smart_proxy/scheduler"
@@ -22,37 +27,61 @@ import (
 // SmartProxyService 定义了反向代理的所有组件（集合）
 type SmartProxyService struct {
 	Logger            *zap.Logger
-	ReverseproxyGroup *reverseproxy.ReverseProxyGroup //提供反向代理+连接池（Pool）+负载均衡
-	Scheduler         *scheduler.SmartProxyScheduler  // 核心调度器
-	Etcder            *etcdw.EtcdDiscoveryClient      // 服务发现模块
-	Controller        *manager.Controller             //提供API管理的Restful-API
+	ReverseproxyGroup *reverseproxy.SmartReverseProxyGroup // 提供反向代理 + 连接池（Pool）+ 负载均衡
+	Scheduler         *scheduler.SmartProxyScheduler       // 核心调度器
+	//Etcder            *etcdw.EtcdDiscoveryClient           // 服务发现模块
+	Discoveryer   *discovery.DiscoveryClient
+	Controller    *manager.Controller  // 提供后端增删查改 API 管理的 Restful-API 模块
+	HealthChecker *healthy.HealthCheck // 健康检查
+
+	//channel
+	Discovery2SchedulerChan chan backend.BackendNodeOperator
 }
 
 // 创建 SmartProxyService 的所有组件
-func NewSmartProxyService() (*SmartProxyService, error) {
-	logger, err := zaplog.ZapLoggerInit("smart_proxy")
+func NewSmartProxyService(proxy_config *config.SmartProxyConfig) (*SmartProxyService, error) {
+	logger, err := zaplog.ZapLoggerInit(proxy_config.ProjectName)
 	if err != nil {
 		panic(err)
 	}
-	scheduler_svc, _ := scheduler.NewSmartProxyScheduler(logger)
-	etcder, _ := etcdw.NewEtcdDiscoveryClient(logger, scheduler_svc, "/test/")
 
-	svc := &SmartProxyService{
-		Scheduler: scheduler_svc,
-		Logger:    logger,
-		Etcder:    etcder,
+	logger.Info("NewSmartProxyService init...")
+
+	sps := &SmartProxyService{
+		Logger:                  logger,
+		Discovery2SchedulerChan: make(chan backend.BackendNodeOperator),
 	}
 
-	return svc, nil
+	//Init all submodules
+	sps.Controller = manager.NewController(logger, proxy_config)
+
+	sps.Discoveryer, _ = discovery.NewDiscoveryClient(logger, proxy_config, sps.Discovery2SchedulerChan)
+
+	sps.HealthChecker = healthy.NewHealthCheck(logger, proxy_config)
+
+	sps.Scheduler, _ = scheduler.NewSmartProxyScheduler(logger, sps.Discovery2SchedulerChan)
+
+	sps.ReverseproxyGroup, _ = reverseproxy.NewSmartReverseProxyGroup(logger, proxy_config)
+
+	return sps, nil
 }
 
 // 启动 SmartProxyService 的所有子组件
+// 需要注意组件的启动顺序不能调整！
 func (s *SmartProxyService) RunLoop() error {
 	sigC := make(chan os.Signal, 1)
 	signal.Notify(sigC, os.Interrupt, syscall.SIGTERM)
 
+	//start scheduler
 	s.Scheduler.SchedulerLoopRun()
-	s.Etcder.Run()
+	//start discovery
+	s.Discoveryer.RealClient.Run()
+	//start controller
+	s.Controller.Run()
+
+	//start healthychecking
+	s.HealthChecker.Run()
+	//start reverseproxy
 
 	<-sigC
 	return nil

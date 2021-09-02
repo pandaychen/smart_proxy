@@ -21,12 +21,13 @@ func GetSmartproxyConf() *SmartProxyConfig {
 
 // Config is application global config
 type SmartProxyConfig struct {
-	ProjectName          string               `mapstructure:"project"`
-	MysqlConf            MysqlConfig          `mapstructure:"mysql"`
-	RedisConf            RedisConfig          `mapstructure:"redis"`
-	LogConfig            LoggerConfig         `mapstructure:"loger"`
-	ControllerConf       ControllerConfig     `mapstructure:"manager"`
-	DiscoveryListConf    []DiscoveryConfig    `mapstructure:"discovery"`
+	ProjectName    string           `mapstructure:"project"`
+	MysqlConf      MysqlConfig      `mapstructure:"mysql"`
+	RedisConf      RedisConfig      `mapstructure:"redis"`
+	LogConfig      LoggerConfig     `mapstructure:"loger"`
+	ControllerConf ControllerConfig `mapstructure:"manager"`
+	//DiscoveryListConf    []DiscoveryConfig    `mapstructure:"discovery"`
+	DiscoveryConf        DiscoveryConfig      `mapstructure:"discovery"`
 	ReverseProxyListConf []ReverseProxyConfig `mapstructure:"reverseproxy_group"` //support multi proxys
 }
 

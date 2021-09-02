@@ -6,7 +6,8 @@ import (
 	"smart_proxy/backend"
 	"smart_proxy/enums"
 	etcdtool "smart_proxy/pkg/etcd_tools"
-	"smart_proxy/scheduler"
+
+	//"smart_proxy/scheduler"
 
 	//	"github.com/uber-go/atomic"
 	"go.etcd.io/etcd/api/v3/mvccpb"
@@ -14,18 +15,35 @@ import (
 	"go.uber.org/zap"
 )
 
+// EtcdConfig
+type EtcdConfig struct {
+	Cluster    string
+	RootPrefix string //Root 前缀
+
+	PasswordAuthOn bool
+	Username       string
+	Password       string
+	Cert           string
+	Key            string
+	CommonName     string
+	TrustedCaCert  string
+	ResultChan     chan backend.BackendNodeOperator
+	Logger         *zap.Logger
+}
+
 type EtcdDiscoveryClient struct {
 	Logger      *zap.Logger
 	WatchPrefix string
-	Scheduler   *scheduler.SmartProxyScheduler //for events report channel
+	//Scheduler   *scheduler.SmartProxyScheduler //for events report channel
+	BackendChan chan backend.BackendNodeOperator
 	Client      *etcdtool.EtcdV3Client
 }
 
-func NewEtcdDiscoveryClient(logger *zap.Logger, scheduler *scheduler.SmartProxyScheduler, smartproxy_prefix string) (*EtcdDiscoveryClient, error) {
+func NewEtcdDiscoveryClient(etcd_conf *EtcdConfig) (*EtcdDiscoveryClient, error) {
 	client := &EtcdDiscoveryClient{
-		Logger:      logger,
-		WatchPrefix: smartproxy_prefix,
-		Scheduler:   scheduler,
+		Logger:      etcd_conf.Logger,
+		WatchPrefix: etcd_conf.RootPrefix,
+		BackendChan: etcd_conf.ResultChan,
 	}
 
 	//TODO: fix etcd config
@@ -40,7 +58,6 @@ func NewEtcdDiscoveryClient(logger *zap.Logger, scheduler *scheduler.SmartProxyS
 }
 
 func (e *EtcdDiscoveryClient) Run() {
-
 	datalist, err := e.Client.GetKeyPrefixValues(e.Client.Context, e.WatchPrefix)
 	if err != nil {
 		e.Logger.Error("EtcdDiscoveryClient Run error", zap.String("errmsg", err.Error()))
@@ -57,7 +74,7 @@ func (e *EtcdDiscoveryClient) Run() {
 			Op: enums.BACKEND_ADD,
 		}
 		//send to scheduler's channel
-		e.Scheduler.BackendChan <- backendnode
+		e.BackendChan <- backendnode
 	}
 
 	//TODO: fix etcd watcher
@@ -86,8 +103,14 @@ func (e *EtcdDiscoveryClient) Run() {
 						Op: enums.BACKEND_ADD,
 					}
 				}
-				e.Scheduler.BackendChan <- backendnode
+				e.BackendChan <- backendnode
 			}
 		}
 	}
+}
+
+func (e *EtcdDiscoveryClient) Close() {
+	//TODO: 通知channel关闭
+	e.Client.Close()
+	e.Client.Cancel()
 }
