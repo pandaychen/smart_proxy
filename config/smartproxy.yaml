@@ -1,0 +1,68 @@
+project: smartproxy
+mysql:  # MYSQL配置
+  dbname: smartproxy
+  host: 127.0.0.1 
+  port: 3306
+  username: root 
+  password: xxxx
+  maximum-pool-size: 300  #连接池最大连接数
+  maximum-idle-size: 20  #连接池最大空闲数
+redis:  # REDIS配置
+  host: 127.0.0.1 
+  port: 6379
+  password: xxxx
+  db: 0
+  pool-size: 10 #同一时刻池中最大连接数
+  min-idle-conns: 5 #建立连接时维持的最小空闲连接数量
+  idle-timeout: 3000 #最大空闲时长
+loger:  # ZAP日志配置
+  level: debug
+  file-name: samrtproxy.log
+  time-format: 2006-01-02 15:04:05.000
+  max-size: 500 #单个日志文件大小（MB）
+  max-backups: 7
+  max-age: 7 
+  compress: true
+  local-time: false
+  console: false 
+manager:    #controller
+  host: 127.0.0.1
+  port: 6379
+  type: http #gin/http
+  auth:
+    username: admin
+    password: xxxxx
+discovery:
+  - type: etcd  #etcd/consul/dns
+    cluster:  127.0.0.1:2379
+    prefix: /smartproxy/
+  - type: consul
+    cluster:  127.0.0.1:8200
+    prefix: /smartproxy/
+  - type: dns
+    name: ""  #采用dns时，服务名字定义在reverseproxy_group中
+reverseproxy_group: #reverse proxy
+  - name: proxy1
+    tls: off
+    key: ""
+    cert: ""
+    singnature: off
+    dns_name: smartproxy-name1
+    bind_addr: 127.0.0.1:8081
+    pool:
+      - address: 127.0.0.1:10001
+        weight: 1
+      - address: 127.0.0.1:10002
+        weight: 2
+  - name: proxy2
+    tls: off
+    key: ""
+    cert: ""
+    singnature: off
+    dns_name: smartproxy-name2
+    bind_addr: 127.0.0.1:8082
+    pool:
+      - address: 127.0.0.1:10003
+        weight: 1
+      - address: 127.0.0.1:10004
+        weight: 2
