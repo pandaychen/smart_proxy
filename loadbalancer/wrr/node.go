@@ -5,22 +5,23 @@ import (
 	//	"github.com/uber-go/atomic"
 )
 
-type BackendNodeWrapper struct {
-	backend.BackendNode
-	InitWeight      int //初始化权重
-	CurrentWeight   int
-	EffectiveWeight int //每次pick之后的更新的权重值
+// WrrBackendNodeWrapper 代表一个后端
+type WrrBackendNodeWrapper struct {
+	backend.BackendNode     // 通用的后端节点结构
+	InitWeight          int // 初始化权重（固定不变）
+	CurrentWeight       int // 当前权重（初始值为 0）
+	EffectiveWeight     int // 每次 Pick 之后的更新的权重值（初始值等于 InitWeight ）
 }
 
-func CreateWrrBackendNode(addr string, weight int) *BackendNodeWrapper {
+func NewWrrBackendNode(addr string, weight int) *WrrBackendNodeWrapper {
 	return &BackendNodeWrapper{
 		backend.BackendNode{
-			State: true,
+			State: true, // 默认初始化为开启状态
 			//State: *atomic.NewBool(true),
 			Addr: addr,
 		},
 		InitWeight:      weight,
-		CurrentWeight:   0,
+		CurrentWeight:   0, // 初始化为 0
 		EffectiveWeight: weight,
 	}
 }

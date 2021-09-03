@@ -12,6 +12,7 @@ import (
 
 	"smart_proxy/backend"
 	"smart_proxy/enums"
+	"smart_proxy/loadbalancer"
 	"smart_proxy/pkg/comms"
 	sphttp "smart_proxy/pkg/http"
 
@@ -35,7 +36,11 @@ type SmartReverseProxy struct {
 
 	IsSafeHttpSigOn bool // 是否加入 http 转发签名
 
-	BackendNodePool backend.BackendNodePool // 存储后端池
+	// 重要！
+	//BackendNodePool 指向后端对应的在线 server 列表
+	//BackendNodePool 是一个 interface{}，由具体的 lb 算法来完成实例化
+	// 真正的后端连接池以 BackendNodePool 对象实例化
+	BackendNodePool loadbalancer.BackendNodePool
 
 	//mapping requests to backends，请求会根据某种策略被代理到不同的后端，key 为后端地址
 	ReverseProxyMap     map[string]*httputil.ReverseProxy
@@ -165,7 +170,7 @@ func (s *SmartReverseProxy) GetBackendNodeWithLoadbalance(r *http.Request) strin
 	return "127.0.0.1"
 }
 
-//
+// 根据后端地址 proxy_addr 选择（新建）reverseproxy
 func (s *SmartReverseProxy) GetRealReverseProxy(proxy_addr string) (*httputil.ReverseProxy, error) {
 	s.ReverseProxyMapLock.RLock()
 	rsproxy, exists := s.ReverseProxyMap[proxy_addr]
