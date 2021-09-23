@@ -26,6 +26,7 @@ type SmartProxyConfig struct {
 	RedisConf      RedisConfig      `mapstructure:"redis"`
 	LogConfig      LoggerConfig     `mapstructure:"loger"`
 	ControllerConf ControllerConfig `mapstructure:"manager"`
+	MetricsConf    MetricsConfig    `mapstructure:"metrics"`
 	//DiscoveryListConf    []DiscoveryConfig    `mapstructure:"discovery"`
 	DiscoveryConf        DiscoveryConfig      `mapstructure:"discovery"`
 	ReverseProxyListConf []ReverseProxyConfig `mapstructure:"reverseproxy_group"` //support multi proxys
@@ -42,7 +43,7 @@ type ReverseProxyConfig struct {
 	TlsOn        bool         `mapstructure:"tls"`
 	Key          string       `mapstructure:"key"`
 	Cert         string       `mapstructure:"cert"`
-	LbType         string       `mapstructure:"lbtype"`
+	LbType       string       `mapstructure:"lbtype"`
 	SingnatureOn bool         `mapstructure:"singnature"`
 	DnsName      string       `mapstructure:"dns_name"`
 	PoolConfList []PoolConfig `mapstructure:"pool"`
@@ -62,6 +63,11 @@ type ControllerConfig struct {
 	ControllerType string `mapstructure:"type"`
 	Username       string `mapstructure:"username"`
 	Password       string `mapstructure:"password"`
+}
+
+type MetricsConfig struct {
+	Host string `mapstructure:"host"`
+	Port int    `mapstructure:"port"`
 }
 
 type MysqlConfig struct {
@@ -152,9 +158,9 @@ func setConfigPath(path string) {
 	}
 }
 
-func (c SmartProxyConfig)CheckReverseproxyValid()bool{
+func (c SmartProxyConfig) CheckReverseproxyValid() bool {
 
-	return  true
+	return true
 }
 
 func main() {

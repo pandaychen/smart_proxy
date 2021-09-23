@@ -6,6 +6,7 @@ package core
 3. discovery 提供从第三方注册中心，获取在线列表以及实时监控后端服务地址变化
 4. scheduler 提供各模块间的通信桥梁
 5. reverseproxy 反向代理模块
+6. metrics 指标采集
 */
 
 import (
@@ -19,6 +20,7 @@ import (
 	"smart_proxy/discovery"
 	"smart_proxy/healthy"
 	"smart_proxy/manager"
+	"smart_proxy/metrics"
 	"smart_proxy/reverseproxy"
 	"smart_proxy/scheduler"
 	"syscall"
@@ -37,6 +39,7 @@ type SmartProxyService struct {
 	Discoveryer   *discovery.DiscoveryClient
 	Controller    *manager.Controller  // 提供后端增删查改 API 管理的 Restful-API 模块
 	HealthChecker *healthy.HealthCheck // 健康检查
+	Metricser     *metrics.Metrics     //指标采集
 
 	//channel
 	Discovery2SchedulerChan chan backend.BackendNodeOperator
@@ -69,6 +72,8 @@ func NewSmartProxyService(proxy_config *config.SmartProxyConfig) (*SmartProxySer
 
 	sps.Scheduler, _ = scheduler.NewSmartProxyScheduler(logger, sps.ReverseproxyGroup, sps.Discovery2SchedulerChan)
 
+	sps.Metricser = metrics.NewMetrics(logger, proxy_config, sps.ReverseproxyGroup)
+
 	sps.Ctx, sps.Cancel = context.WithCancel(context.Background())
 
 	return sps, nil
@@ -92,6 +97,8 @@ func (s *SmartProxyService) RunLoop() error {
 	s.HealthChecker.Run()
 	//start reverseproxy
 	s.ReverseproxyGroup.Run()
+	//start metrics
+	s.Metricser.Run()
 
 	<-sigC
 	return nil

@@ -54,8 +54,8 @@ type SmartReverseProxy struct {
 	Logger *zap.Logger
 
 	//metrcis
-	httpRequestCount    *prometheus.CounterVec
-	httpRequestDuration *prometheus.SummaryVec
+	HttpRequestCount    *prometheus.CounterVec
+	HttpRequestDuration *prometheus.SummaryVec
 }
 
 // init single reverse proxy
@@ -90,20 +90,24 @@ func NewSmartReverseProxy(logger *zap.Logger, conf *config.ReverseProxyConfig) (
 		Logger:              logger,
 	}
 
-	spr.httpRequestCount = prometheus.NewCounterVec(
+	spr.HttpRequestCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "smartproxy_http_request_count",
-			Help: "http request count",
+			Name:      "smartproxy_http_request_count",
+			Help:      "http request count",
+			Namespace: "smartproxy",
+			//Subsystem: "",
 		},
-		[]string{"method", "host", "path", "status"},
+		[]string{"proxy_name", "method", "host", "path", "status"},
 	)
 
-	spr.httpRequestDuration = prometheus.NewSummaryVec(
+	spr.HttpRequestDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: "smartproxy_http_request_duration",
-			Help: "http request duration",
+			Name:      "smartproxy_http_request_duration",
+			Help:      "http request duration",
+			Namespace: "smartproxy",
+			//Subsystem: "",
 		},
-		[]string{"method", "host", "path"},
+		[]string{"proxy_name", "method", "host", "path"},
 	)
 
 	switch spr.LoadBalancerName {
@@ -204,6 +208,15 @@ func (s *SmartReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		sphttp.SmartProxyResponse(w, sphttp.ErrorCreateReverseProxy)
 		return
 	}
+
+	//请求计数器+1
+	defer s.HttpRequestCount.With(prometheus.Labels{
+		"proxy_name": s.ProxyName,
+		"method":     r.Method,
+		"host":       origin_host,
+		"path":       r.URL.Path,
+		"status":     "200", //todo：获取最终响应中的实际状态
+	}).Inc()
 
 	//forward requests
 	rsp.ServeHTTP(w, r)
