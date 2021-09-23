@@ -1,11 +1,15 @@
 package core
 
-//lb 的主入口，一个 lb 包含三个子模块
-//1.balancer 实现负载均衡逻辑
-//2.controller 提供 cgiserver 及 restfulapi，直接操作 pool
-//3.discovery，提供从第三方注册中心，获取在线列表以及实时监控后端服务地址变化
+/* 主入口，包含如下子模块：
+1. loadbalancer 实现负载均衡逻辑，提供复杂均衡的具体算法实现
+2. controller 提供 cgiserver 及 restfulapi，直接操作 pool
+3. discovery 提供从第三方注册中心，获取在线列表以及实时监控后端服务地址变化
+4. scheduler 提供各模块间的通信桥梁
+5. reverseproxy 反向代理模块
+*/
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"smart_proxy/backend"
@@ -36,6 +40,8 @@ type SmartProxyService struct {
 
 	//channel
 	Discovery2SchedulerChan chan backend.BackendNodeOperator
+	Ctx                     context.Context
+	Cancel                  context.CancelFunc
 }
 
 // 创建 SmartProxyService 的所有组件
@@ -49,7 +55,7 @@ func NewSmartProxyService(proxy_config *config.SmartProxyConfig) (*SmartProxySer
 
 	sps := &SmartProxyService{
 		Logger:                  logger,
-		Discovery2SchedulerChan: make(chan backend.BackendNodeOperator),
+		Discovery2SchedulerChan: make(chan backend.BackendNodeOperator, 128),
 	}
 
 	//Init all submodules
@@ -59,9 +65,11 @@ func NewSmartProxyService(proxy_config *config.SmartProxyConfig) (*SmartProxySer
 
 	sps.HealthChecker = healthy.NewHealthCheck(logger, proxy_config)
 
-	sps.Scheduler, _ = scheduler.NewSmartProxyScheduler(logger, sps.Discovery2SchedulerChan)
-
 	sps.ReverseproxyGroup, _ = reverseproxy.NewSmartReverseProxyGroup(logger, proxy_config)
+
+	sps.Scheduler, _ = scheduler.NewSmartProxyScheduler(logger, sps.ReverseproxyGroup, sps.Discovery2SchedulerChan)
+
+	sps.Ctx, sps.Cancel = context.WithCancel(context.Background())
 
 	return sps, nil
 }
@@ -72,16 +80,18 @@ func (s *SmartProxyService) RunLoop() error {
 	sigC := make(chan os.Signal, 1)
 	signal.Notify(sigC, os.Interrupt, syscall.SIGTERM)
 
+	defer s.Cancel()
+
 	//start scheduler
-	s.Scheduler.SchedulerLoopRun()
+	s.Scheduler.Run(s.Ctx)
 	//start discovery
-	s.Discoveryer.RealClient.Run()
+	s.Discoveryer.Run()
 	//start controller
 	s.Controller.Run()
-
 	//start healthychecking
 	s.HealthChecker.Run()
 	//start reverseproxy
+	s.ReverseproxyGroup.Run()
 
 	<-sigC
 	return nil

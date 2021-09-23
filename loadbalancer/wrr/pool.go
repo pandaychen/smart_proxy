@@ -2,6 +2,7 @@ package wrr
 
 import (
 	"errors"
+	"smart_proxy/backend"
 	"sync"
 
 	"go.uber.org/zap"
@@ -21,22 +22,22 @@ type WrrBalancerPool struct {
 func NewWrrBalancerPool(logger *zap.Logger, backends_map map[string]int) (*WrrBalancerPool, error) {
 	pool := &WrrBalancerPool{
 		Logger:          logger,
-		BackendsSet:     new(sync.Map),
+		BackendNodeSet:  new(sync.Map),
 		BackendNodeList: make([]*WrrBackendNodeWrapper, 0),
 	}
 	for addr, weight := range backends_map {
-		pool.Add(addr, weight)
+		pool.AddNode(addr, weight)
 	}
 	return pool, nil
 }
 
 func (p *WrrBalancerPool) Name() string {
-	return "wrr"
+	return "weight-rr"
 }
 
 func (p *WrrBalancerPool) Size() int {
-	p.Rlock()
-	defer p.UnRlock()
+	//p.RLock()		//fix bugs
+	//defer p.RUnlock()
 	return len(p.BackendNodeList)
 }
 
@@ -44,7 +45,7 @@ func (p *WrrBalancerPool) Size() int {
 func (p *WrrBalancerPool) AddNode(addr string, weight int) error {
 	p.Lock()
 	defer p.Unlock()
-	_, exists := p.BackendNodeSet.LoadOrStore(addr, struct{})
+	_, exists := p.BackendNodeSet.LoadOrStore(addr, struct{}{})
 	if exists {
 		return errors.New("Node Exists")
 	}
@@ -66,15 +67,15 @@ func (p *WrrBalancerPool) RemoveNode(addr string) {
 
 	_, exists := p.BackendNodeSet.Load(addr)
 	if !exists {
-		return errors.New("Node Not Exists")
+		return
 	}
 
-	p.BackendsSet.Delete(addr)
+	p.BackendNodeSet.Delete(addr)
 
 	index := p.index(addr)
 	if index >= 0 && index < p.Size() {
 		//index 合法
-		if p.BackendNodeList[idx].State == false {
+		if p.BackendNodeList[index].Node.State == false {
 
 		}
 		//remove BackendNodeList[index]
@@ -86,17 +87,16 @@ func (p *WrrBalancerPool) RemoveNode(addr string) {
 // 注意：每次操作单位为 1
 //https://pandaychen.github.io/2019/12/15/NGINX-SMOOTH-WEIGHT-ROUNDROBIN-ANALYSIS/#0x04-nginx 平滑的基于权重轮询算法
 func (p *WrrBalancerPool) Pick(pick_key string) (*backend.BackendNode, error) {
+	var (
+		chosen *WrrBackendNodeWrapper
+		total  int
+	)
 	p.RLock()
 	defer p.RUnlock()
 
-	var (
-		chosen *backend.BackendNode
-		total  int
-	)
-
 	for _, node := range p.BackendNodeList {
 		//lock
-		node.Lock()
+		node.Node.Lock()
 		total += node.EffectiveWeight
 		node.CurrentWeight += node.EffectiveWeight
 
@@ -109,15 +109,15 @@ func (p *WrrBalancerPool) Pick(pick_key string) (*backend.BackendNode, error) {
 			chosen = node
 		}
 		//unlock
-		node.Unlock()
+		node.Node.Unlock()
 	}
 
 	if chosen != nil {
-		chosen.Lock()
+		chosen.Node.Lock()
 		// 更新选中节点的权重值
 		chosen.CurrentWeight -= total
-		chosen.Unlock()
-		return chosen, nil
+		chosen.Node.Unlock()
+		return chosen.Node, nil
 	}
 	return nil, errors.New("None Node Selected")
 }
@@ -125,7 +125,7 @@ func (p *WrrBalancerPool) Pick(pick_key string) (*backend.BackendNode, error) {
 // 查找服务地址在 p.BackendNodeList 中的 index，为了操作对应的 BackendNode
 func (p *WrrBalancerPool) index(addr string) int {
 	for i, v := range p.BackendNodeList {
-		if v.Addr == addr {
+		if v.Node.Addr == addr {
 			return i
 		}
 	}

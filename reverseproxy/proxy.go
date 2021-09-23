@@ -2,6 +2,7 @@ package reverseproxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -10,9 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"smart_proxy/backend"
+	"smart_proxy/config"
 	"smart_proxy/enums"
 	"smart_proxy/loadbalancer"
+	"smart_proxy/loadbalancer/wrr"
 	"smart_proxy/pkg/comms"
 	sphttp "smart_proxy/pkg/http"
 
@@ -57,17 +59,35 @@ type SmartReverseProxy struct {
 }
 
 // init single reverse proxy
-func NewSmartReverseProxy(logger *zap.Logger, options ...SmartReverseProxyOption) (*SmartReverseProxy, error) {
-	spr := &SmartReverseProxy{
-		ReverseProxyMap: make(map[string]*httputil.ReverseProxy),
-		Logger:          logger,
+func NewSmartReverseProxy(logger *zap.Logger, conf *config.ReverseProxyConfig) (*SmartReverseProxy, error) {
+	var (
+		lb_name enums.LB_TYPE
+		//discovery_name enums.DISCOVERY_TYPE
+		backendNodemap = make(map[string]int)
+		//address        string
+	)
+
+	switch conf.LbType {
+	case "weight-rr":
+		lb_name = enums.LB_WEIGHT_RR
+	case "consistent-hash":
+		lb_name = enums.LB_CONSISTENT_HASH
+	case "p2c":
+		lb_name = enums.LB_P2C
+	default:
+		lb_name = enums.LB_WEIGHT_RR
 	}
 
-	for _, opt := range options {
-		if err := opt(spr); err != nil {
-			spr.Logger.Error("init config error", zap.String("errmsg", err.Error()))
-			return nil, err
-		}
+	spr := &SmartReverseProxy{
+		ProxyName:        conf.ProxyName,
+		ProxyAddress:     conf.BindAddr,
+		IsSafeHttpSigOn:  conf.SingnatureOn,
+		LoadBalancerName: lb_name,
+		TimeOut:          20 * time.Second,
+		//	DiscoveryName    :discover_name,
+		ReverseProxyMap:     make(map[string]*httputil.ReverseProxy), //key与lb算法有关
+		ReverseProxyMapLock: new(sync.RWMutex),
+		Logger:              logger,
 	}
 
 	spr.httpRequestCount = prometheus.NewCounterVec(
@@ -86,9 +106,35 @@ func NewSmartReverseProxy(logger *zap.Logger, options ...SmartReverseProxyOption
 		[]string{"method", "host", "path"},
 	)
 
+	switch spr.LoadBalancerName {
+	case enums.LB_WEIGHT_RR:
+		for _, v := range conf.PoolConfList {
+			weight := v.Weight
+			if v.Address == "" {
+				continue
+			}
+			if v.Weight <= 0 {
+				weight = 1
+			}
+			backendNodemap[v.Address] = weight
+		}
+		wrrpool, err := wrr.NewWrrBalancerPool(logger, backendNodemap)
+		if err != nil {
+			logger.Error("NewSmartReverseProxy - NewWrrBalancerPool error", zap.String("errmsg", err.Error()))
+			return nil, err
+		} else {
+			spr.BackendNodePool = wrrpool
+		}
+	case enums.LB_CONSISTENT_HASH:
+		return nil, errors.New("not support")
+	case enums.LB_P2C:
+		return nil, errors.New("not support")
+	}
+
 	if spr.IsGinOn {
 		//use gin as a proxy
 	} else {
+		//use http.Server as a proxy
 		//spr 实现了 ServeHTTP 方法，传给 http.Server 的 Handler，作为 ProxyServer
 		spr.ProxyServer = &http.Server{
 			Addr:    spr.ProxyAddress,
@@ -101,7 +147,7 @@ func NewSmartReverseProxy(logger *zap.Logger, options ...SmartReverseProxyOption
 // start server with goroutine
 func (s *SmartReverseProxy) Run() error {
 	var err error
-	if s.IsTlsOn {
+	if !s.IsTlsOn {
 		go func() {
 			if err = s.ProxyServer.ListenAndServe(); err != nil {
 				s.Logger.Error("ListenAndServe error", zap.String("proxyname", s.ProxyName))
@@ -109,6 +155,7 @@ func (s *SmartReverseProxy) Run() error {
 			}
 		}()
 	} else {
+		//run https
 		go func() {
 			if err = s.ProxyServer.ListenAndServeTLS(s.CertFile, s.KeyFile); err != nil {
 				s.Logger.Error("ListenAndServeTLS error", zap.String("proxyname", s.ProxyName))
@@ -137,18 +184,24 @@ func (s *SmartReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// 原始请求中的 Host 必须等于代理设置的 ProxyName
 	if origin_host != s.ProxyName {
-		sphttp.SmartProxyResponse(w, sphttp.ErrorHostNotMatch)
-		return
+		//sphttp.SmartProxyResponse(w, sphttp.ErrorHostNotMatch)
+		//return
 	}
 
 	// 根据 lb 算法选择一个合适的 backend（ip+port）
-	backend_address := s.GetBackendNodeWithLoadbalance(r)
+	backend_address, err := s.GetBackendNodeWithLoadbalance(r)
+	if err != nil {
+		s.Logger.Error("GetBackendNodeWithLoadbalance pick next node error", zap.String("errmgs", err.Error()))
+		sphttp.SmartProxyResponse(w, sphttp.ErrorNoneProperlyBackendNode)
+		return
+	}
 	s.Logger.Info("SmartReverseProxy-GetBackendNode info", zap.String("backend_address", backend_address))
 
 	// 选择指定的 httputil.ReverseProxy 处理请求
 	rsp, err := s.GetRealReverseProxy(backend_address)
 	if err != nil {
 		s.Logger.Error("ServeHTTP-GetRealReverseProxy err", zap.String("errmsg", err.Error()))
+		sphttp.SmartProxyResponse(w, sphttp.ErrorCreateReverseProxy)
 		return
 	}
 
@@ -156,18 +209,16 @@ func (s *SmartReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rsp.ServeHTTP(w, r)
 }
 
-func (s *SmartReverseProxy) GetBackendNodeWithLoadbalance(r *http.Request) string {
+func (s *SmartReverseProxy) GetBackendNodeWithLoadbalance(r *http.Request) (string, error) {
 	client_ip := sphttp.GetClientIP(r)
 	s.Logger.Info("GetBackendNodeWithLoadbalance", zap.String("client_ip", client_ip))
-
-	switch s.LoadBalancerName {
-	case enums.LB_CONSISTENT_HASH:
-		return "127.0.0.1"
-	case enums.LB_WEIGHT_RR:
-		return "127.0.0.1"
+	next_backend_node, err := s.BackendNodePool.Pick(client_ip)
+	if err != nil {
+		s.Logger.Error("GetBackendNodeWithLoadbalance pick next node error", zap.String("errmgs", err.Error()))
+		return "", err
 	}
 
-	return "127.0.0.1"
+	return next_backend_node.Addr, nil
 }
 
 // 根据后端地址 proxy_addr 选择（新建）reverseproxy

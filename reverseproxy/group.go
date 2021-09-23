@@ -37,9 +37,11 @@ func NewSmartReverseProxyGroup(logger *zap.Logger, smpconf *config.SmartProxyCon
 }
 
 func (g *SmartReverseProxyGroup) AddReverseProxy(conf *config.ReverseProxyConfig) error {
-	//init reverse proxy
-	rproxy := &SmartReverseProxy{}
-
+	rproxy, err := NewSmartReverseProxy(g.Logger, conf)
+	if err != nil {
+		g.Logger.Error("AddReverseProxy -  NewSmartReverseProxy error", zap.String("err", err.Error()))
+		return err
+	}
 	g.Lock()
 	defer g.Unlock()
 	g.Proxys[rproxy.ProxyName] = rproxy

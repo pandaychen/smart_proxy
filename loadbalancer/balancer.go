@@ -14,10 +14,10 @@ type BackendNodePool interface {
 	Size() int
 
 	// get a usable backend nodes from pool with lb's pick method
-	Pick() *backend.BackendNode
+	Pick(pick_key string) (*backend.BackendNode, error)
 
 	// add a backend node to pool
-	AddNode(addr string)
+	AddNode(addr string, weight int) error
 
 	// remove a node from pool
 	RemoveNode(addr string)

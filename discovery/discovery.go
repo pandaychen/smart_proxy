@@ -98,5 +98,5 @@ func NewDiscoveryClient(logger *zap.Logger, smpconf *config.SmartProxyConfig, di
 
 func (c *DiscoveryClient) Run() {
 	c.Logger.Info("DiscoveryClient run...", zap.Any("dtype", c.Type))
-	go c.Run()
+	go c.RealClient.Run()
 }

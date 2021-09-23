@@ -15,7 +15,9 @@ func (e *SmartProxyError) Error() string {
 
 //内置错误
 var (
-	ErrorHostNotMatch = &SmartProxyError{http.StatusBadRequest, "Request Host Not Match with Proxy Host"}
+	ErrorHostNotMatch            = &SmartProxyError{http.StatusBadRequest, "Request Host Not Match with Proxy Host"}
+	ErrorNoneProperlyBackendNode = &SmartProxyError{http.StatusBadRequest, "Can not found Online Backend Node"}
+	ErrorCreateReverseProxy      = &SmartProxyError{http.StatusBadRequest, "Create Reverse Proxy Error"}
 )
 
 func SmartProxyResponse(w http.ResponseWriter, err *SmartProxyError) {

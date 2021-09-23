@@ -2,6 +2,7 @@ package backend
 
 import (
 	"smart_proxy/enums"
+	"sync"
 	//	"github.com/uber-go/atomic"
 )
 
@@ -20,7 +21,13 @@ type BackendNodeStatus struct {
 type BackendNode struct {
 	//State    atomic.Bool //https://pkg.go.dev/go.uber.org/atomic
 	sync.RWMutex
-	Addr     string
-	State    bool   //true - up，false - down
-	Metadata string //metadata元数据（JSON String）
+	ProxyName string //belongs to which proxy
+	Addr      string
+	State     bool     //true - up，false - down
+	Metainfo  Metadata //metadata元数据（JSON String）
+}
+
+type Metadata struct {
+	Addr   string `json:"addr"`
+	Weight int    `json:"weight"`
 }

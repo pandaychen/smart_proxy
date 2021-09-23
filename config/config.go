@@ -42,6 +42,7 @@ type ReverseProxyConfig struct {
 	TlsOn        bool         `mapstructure:"tls"`
 	Key          string       `mapstructure:"key"`
 	Cert         string       `mapstructure:"cert"`
+	LbType         string       `mapstructure:"lbtype"`
 	SingnatureOn bool         `mapstructure:"singnature"`
 	DnsName      string       `mapstructure:"dns_name"`
 	PoolConfList []PoolConfig `mapstructure:"pool"`
@@ -149,6 +150,11 @@ func setConfigPath(path string) {
 		viper.AddConfigPath("./conf")
 		viper.SetConfigName("smartproxy.yaml")
 	}
+}
+
+func (c SmartProxyConfig)CheckReverseproxyValid()bool{
+
+	return  true
 }
 
 func main() {
