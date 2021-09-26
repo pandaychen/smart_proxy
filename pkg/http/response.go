@@ -39,3 +39,29 @@ func SmartProxyResponseWithError(w http.ResponseWriter, err error) {
 	w.WriteHeader(http.StatusInternalServerError)
 	w.Write([]byte(err.Error()))
 }
+
+// 封装http.ResponseWriter，metrics需要HTTP CODE
+type SmartProxyResponseWriter struct {
+	http.ResponseWriter
+	HttpRetCode int
+	Bytes       int
+}
+
+func NewSmartProxyResponseWriter(resp http.ResponseWriter, code int) *SmartProxyResponseWriter {
+	return &SmartProxyResponseWriter{
+		ResponseWriter: resp,
+		HttpRetCode:    code,
+	}
+}
+
+//
+func (w *SmartProxyResponseWriter) Write(data []byte) (int, error) {
+	size, err := w.ResponseWriter.Write(data)
+	w.Bytes += size
+	return size, err
+}
+
+func (w *SmartProxyResponseWriter) WriteHeader(retcode int) {
+	w.HttpRetCode = retcode
+	w.ResponseWriter.WriteHeader(retcode)
+}
