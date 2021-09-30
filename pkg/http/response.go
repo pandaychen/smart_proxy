@@ -2,7 +2,11 @@ package http
 
 //https://pkg.go.dev/net/http
 
-import "net/http"
+import (
+	"net/http"
+
+	"go.uber.org/zap"
+)
 
 type SmartProxyError struct {
 	StatusCode int
@@ -41,21 +45,27 @@ func SmartProxyResponseWithError(w http.ResponseWriter, err error) {
 }
 
 // 封装http.ResponseWriter，metrics需要HTTP CODE
+//https://gist.github.com/Boerworz/b683e46ae0761056a636
 type SmartProxyResponseWriter struct {
 	http.ResponseWriter
+	Logger      *zap.Logger
 	HttpRetCode int
 	Bytes       int
 }
 
-func NewSmartProxyResponseWriter(resp http.ResponseWriter, code int) *SmartProxyResponseWriter {
+func NewSmartProxyResponseWriter(logger *zap.Logger, resp http.ResponseWriter, code int) *SmartProxyResponseWriter {
 	return &SmartProxyResponseWriter{
 		ResponseWriter: resp,
 		HttpRetCode:    code,
+		Logger:         logger,
 	}
 }
 
 //
 func (w *SmartProxyResponseWriter) Write(data []byte) (int, error) {
+	if w.HttpRetCode == 0 {
+		w.HttpRetCode = 200
+	}
 	size, err := w.ResponseWriter.Write(data)
 	w.Bytes += size
 	return size, err

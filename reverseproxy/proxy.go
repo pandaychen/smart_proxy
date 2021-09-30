@@ -219,6 +219,7 @@ func (s *SmartReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}).Inc()
 
 	//forward requests
+	//TODO: 使用封装的http.ResponseWriter替换掉这里的w
 	rsp.ServeHTTP(w, r)
 }
 
