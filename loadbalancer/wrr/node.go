@@ -3,6 +3,7 @@ package wrr
 import (
 	"smart_proxy/backend"
 	//	"github.com/uber-go/atomic"
+	atom "smart_proxy/pkg/pyatomic"
 )
 
 // WrrBackendNodeWrapper 代表一个后端
@@ -16,7 +17,7 @@ type WrrBackendNodeWrapper struct {
 func NewWrrBackendNode(addr string, weight int) *WrrBackendNodeWrapper {
 	return &WrrBackendNodeWrapper{
 		Node: &backend.BackendNode{
-			State: true, // 默认初始化为开启状态
+			State: atom.NewAtomicBoolWithVal(true), // 默认初始化为开启状态
 			//State: *atomic.NewBool(true),
 			Addr: addr,
 		},

@@ -17,6 +17,8 @@ type WrrBalancerPool struct {
 	BackendNodeList []*WrrBackendNodeWrapper
 	Logger          *zap.Logger
 	BackendNodeSet  *sync.Map // 用于去重
+
+	DownNodeCount int //计数器
 }
 
 func NewWrrBalancerPool(logger *zap.Logger, backends_map map[string]int) (*WrrBalancerPool, error) {
@@ -75,8 +77,8 @@ func (p *WrrBalancerPool) RemoveNode(addr string) {
 	index := p.index(addr)
 	if index >= 0 && index < p.Size() {
 		//index 合法
-		if p.BackendNodeList[index].Node.State == false {
-
+		if !p.BackendNodeList[index].Node.State.IsTrue() {
+			//计数器更新
 		}
 		//remove BackendNodeList[index]
 		p.BackendNodeList = append(p.BackendNodeList[:index], p.BackendNodeList[index+1:]...)
@@ -95,6 +97,10 @@ func (p *WrrBalancerPool) Pick(pick_key string) (*backend.BackendNode, error) {
 	defer p.RUnlock()
 
 	for _, node := range p.BackendNodeList {
+		//添加状态过滤
+		if !node.Node.State.IsTrue() {
+			continue
+		}
 		//lock
 		node.Node.Lock()
 		total += node.EffectiveWeight
@@ -133,9 +139,40 @@ func (p *WrrBalancerPool) index(addr string) int {
 }
 
 func (p *WrrBalancerPool) UpNodeStatus(addr string) {
+	p.setBackendStatus(addr, true)
 	return
 }
 
+//关闭后端节点
 func (p *WrrBalancerPool) DownNodeStatus(addr string) {
+	p.setBackendStatus(addr, false)
 	return
+}
+
+//设置后端节点状态
+func (p *WrrBalancerPool) setBackendStatus(addr string, isNodeUp bool) error {
+	//add read lock
+	p.RLock()
+	node_index := p.index(addr)
+	p.RUnlock()
+
+	if node_index < 0 || node_index >= p.Size() {
+		return errors.New("illegal index")
+	}
+
+	node := p.BackendNodeList[node_index]
+
+	if node.Node.State.IsTrue() {
+		if !isNodeUp {
+			//down
+			node.Node.State.Set(false)
+		}
+	} else {
+		if isNodeUp {
+			//up
+			node.Node.State.Set(true)
+		}
+	}
+
+	return nil
 }

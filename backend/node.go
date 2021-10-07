@@ -3,13 +3,21 @@ package backend
 import (
 	"smart_proxy/enums"
 	"sync"
+
 	//	"github.com/uber-go/atomic"
+	atom "smart_proxy/pkg/pyatomic"
 )
 
 //	Operation on backend node
 type BackendNodeOperator struct {
 	Target BackendNode
 	Op     enums.BACKEND_OPTION
+}
+
+//	Operation on backend node
+type PeerStateOperator struct {
+	Target BackendNode
+	Op     enums.BACKEND_STAT
 }
 
 // mark backend status
@@ -23,8 +31,8 @@ type BackendNode struct {
 	sync.RWMutex
 	ProxyName string //belongs to which proxy
 	Addr      string
-	State     bool     //true - up，false - down
-	Metainfo  Metadata //metadata元数据（JSON String）
+	State     *atom.AtomicBool //true - up，false - down，标识节点状态
+	Metainfo  Metadata         //metadata元数据（JSON String）
 }
 
 type Metadata struct {

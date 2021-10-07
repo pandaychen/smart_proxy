@@ -13,6 +13,8 @@ import (
 	//"smart_proxy/scheduler"
 
 	//	"github.com/uber-go/atomic"
+	atom "smart_proxy/pkg/pyatomic"
+
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
@@ -90,7 +92,7 @@ func (e *EtcdDiscoveryClient) Run() {
 			Target: backend.BackendNode{
 				ProxyName: proxyname,
 				//State:    *atomic.NewBool(true),
-				State:    true,
+				State:    atom.NewAtomicBoolWithVal(true),
 				Addr:     metadata.Addr,
 				Metainfo: metadata},
 			Op: enums.BACKEND_ADD,
@@ -121,7 +123,6 @@ func (e *EtcdDiscoveryClient) Run() {
 					}
 					backendnode = backend.BackendNodeOperator{
 						Target: backend.BackendNode{
-							State:     true,
 							ProxyName: proxyname,
 							Addr:      metadata.Addr,
 							Metainfo:  metadata},
@@ -135,7 +136,7 @@ func (e *EtcdDiscoveryClient) Run() {
 					}
 					backendnode = backend.BackendNodeOperator{
 						Target: backend.BackendNode{
-							State:     true,
+							State:     atom.NewAtomicBoolWithVal(true),
 							ProxyName: proxyname,
 							Addr:      metadata.Addr,
 							Metainfo:  metadata},
