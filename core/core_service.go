@@ -42,7 +42,8 @@ type SmartProxyService struct {
 	Metricser     *metrics.Metrics     //指标采集
 
 	//channel
-	Discovery2SchedulerChan chan backend.BackendNodeOperator
+	Discovery2SchedulerChan chan backend.BackendNodeOperator //用于服务发现
+	PeerStatChan            chan backend.PeerStateOperator   //用于每次请求结果统计
 	Ctx                     context.Context
 	Cancel                  context.CancelFunc
 }
@@ -59,6 +60,7 @@ func NewSmartProxyService(proxy_config *config.SmartProxyConfig) (*SmartProxySer
 	sps := &SmartProxyService{
 		Logger:                  logger,
 		Discovery2SchedulerChan: make(chan backend.BackendNodeOperator, 128),
+		PeerStatChan:            make(chan backend.PeerStateOperator, 128),
 	}
 
 	//Init all submodules
@@ -68,9 +70,9 @@ func NewSmartProxyService(proxy_config *config.SmartProxyConfig) (*SmartProxySer
 
 	sps.HealthChecker = healthy.NewHealthCheck(logger, proxy_config)
 
-	sps.ReverseproxyGroup, _ = reverseproxy.NewSmartReverseProxyGroup(logger, proxy_config)
+	sps.ReverseproxyGroup, _ = reverseproxy.NewSmartReverseProxyGroup(logger, proxy_config, sps.PeerStatChan)
 
-	sps.Scheduler, _ = scheduler.NewSmartProxyScheduler(logger, sps.ReverseproxyGroup, sps.Discovery2SchedulerChan)
+	sps.Scheduler, _ = scheduler.NewSmartProxyScheduler(logger, sps.ReverseproxyGroup, sps.Discovery2SchedulerChan, sps.PeerStatChan)
 
 	sps.Metricser = metrics.NewMetrics(logger, proxy_config, sps.ReverseproxyGroup)
 

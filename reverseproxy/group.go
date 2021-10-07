@@ -2,6 +2,7 @@ package reverseproxy
 
 //代理分组（group）定义
 import (
+	"smart_proxy/backend"
 	"smart_proxy/config"
 	"smart_proxy/pkg/errcode"
 	"sync"
@@ -15,14 +16,16 @@ type SmartReverseProxyGroup struct {
 	sync.RWMutex
 	Logger *zap.Logger
 	//支持不同的代理端口，以配置文件中的reverseproxy_group.name为唯一key
-	Proxys map[string]*SmartReverseProxy
+	Proxys       map[string]*SmartReverseProxy
+	PeerStatChan chan backend.PeerStateOperator
 }
 
 // 初始化反向代理组
-func NewSmartReverseProxyGroup(logger *zap.Logger, smpconf *config.SmartProxyConfig) (*SmartReverseProxyGroup, error) {
+func NewSmartReverseProxyGroup(logger *zap.Logger, smpconf *config.SmartProxyConfig, peerStatChan chan backend.PeerStateOperator) (*SmartReverseProxyGroup, error) {
 	group := &SmartReverseProxyGroup{
-		Logger: logger,
-		Proxys: make(map[string]*SmartReverseProxy),
+		Logger:       logger,
+		Proxys:       make(map[string]*SmartReverseProxy),
+		PeerStatChan: peerStatChan,
 	}
 
 	group_list := smpconf.ReverseProxyListConf
@@ -37,7 +40,7 @@ func NewSmartReverseProxyGroup(logger *zap.Logger, smpconf *config.SmartProxyCon
 }
 
 func (g *SmartReverseProxyGroup) AddReverseProxy(conf *config.ReverseProxyConfig) error {
-	rproxy, err := NewSmartReverseProxy(g.Logger, conf)
+	rproxy, err := g.NewSmartReverseProxy(g.Logger, conf)
 	if err != nil {
 		g.Logger.Error("AddReverseProxy -  NewSmartReverseProxy error", zap.String("err", err.Error()))
 		return err

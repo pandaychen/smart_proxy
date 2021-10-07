@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"smart_proxy/backend"
 	"smart_proxy/config"
 	"smart_proxy/enums"
 	"smart_proxy/loadbalancer"
@@ -25,6 +26,7 @@ import (
 
 // ProxyService for loadbalance to backend pools
 type SmartReverseProxy struct {
+	Group *SmartReverseProxyGroup
 	sync.RWMutex
 	comms.TlsConfig
 	IsTlsOn      bool
@@ -56,10 +58,13 @@ type SmartReverseProxy struct {
 	//metrcis
 	HttpRequestCount    *prometheus.CounterVec
 	HttpRequestDuration *prometheus.SummaryVec
+
+	//chan
+	PeerStatChan chan backend.PeerStateOperator
 }
 
 // init single reverse proxy
-func NewSmartReverseProxy(logger *zap.Logger, conf *config.ReverseProxyConfig) (*SmartReverseProxy, error) {
+func (g *SmartReverseProxyGroup) NewSmartReverseProxy(logger *zap.Logger, conf *config.ReverseProxyConfig) (*SmartReverseProxy, error) {
 	var (
 		lb_name enums.LB_TYPE
 		//discovery_name enums.DISCOVERY_TYPE
@@ -79,6 +84,7 @@ func NewSmartReverseProxy(logger *zap.Logger, conf *config.ReverseProxyConfig) (
 	}
 
 	spr := &SmartReverseProxy{
+		Group:            g,
 		ProxyName:        conf.ProxyName,
 		ProxyAddress:     conf.BindAddr,
 		IsSafeHttpSigOn:  conf.SingnatureOn,
@@ -182,10 +188,52 @@ func (s *SmartReverseProxy) Shutdown() error {
 // r-- 原始请求
 // w-- 回复客户端的响应
 func (s *SmartReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	//startTime := time.Now()
+	var (
+		backend_address string
+		err             error
+		nodeStat        *backend.PeerStateOperator
+	)
+	startTime := time.Now()
 	origin_host := strings.ToLower(r.Host)
-	//pre check
+	wrapper_resp := &sphttp.SmartProxyResponseWriter{
+		ResponseWriter: w,
+		Logger:         s.Logger,
+		HttpRetCode:    http.StatusOK, //init status
+		Bytes:          0,
+	}
 
+	//defer
+	defer func() {
+		s.Logger.Info("ServeHTTP End", zap.Any("cost", time.Since(startTime)/time.Millisecond), zap.String("remote addr", r.RemoteAddr), zap.String("method", r.Method), zap.String("host", r.Host), zap.Any("url", r.URL), zap.String("proto", r.Proto), zap.Any("code", wrapper_resp.HttpRetCode))
+
+		if backend_address == "" {
+			return
+		}
+
+		//TODO：精细化错误处理
+		if wrapper_resp.HttpRetCode != http.StatusOK {
+			//add fail count
+			nodeStat = &backend.PeerStateOperator{
+				Target: backend.BackendNode{
+					ProxyName: s.ProxyName,
+					Addr:      backend_address},
+				Op: enums.BACKEND_BAD,
+			}
+		} else {
+			nodeStat = &backend.PeerStateOperator{
+				Target: backend.BackendNode{
+					ProxyName: s.ProxyName,
+					Addr:      backend_address},
+				Op: enums.BACKEND_GOOD,
+			}
+		}
+		select {
+		case s.Group.PeerStatChan <- *nodeStat:
+		case <-time.After(time.Second * 2):
+		}
+	}()
+
+	//pre check
 	// 原始请求中的 Host 必须等于代理设置的 ProxyName
 	if origin_host != s.ProxyName {
 		//sphttp.SmartProxyResponse(w, sphttp.ErrorHostNotMatch)
@@ -193,7 +241,7 @@ func (s *SmartReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 根据 lb 算法选择一个合适的 backend（ip+port）
-	backend_address, err := s.GetBackendNodeWithLoadbalance(r)
+	backend_address, err = s.GetBackendNodeWithLoadbalance(r)
 	if err != nil {
 		s.Logger.Error("GetBackendNodeWithLoadbalance pick next node error", zap.String("errmgs", err.Error()))
 		sphttp.SmartProxyResponse(w, sphttp.ErrorNoneProperlyBackendNode)
@@ -220,7 +268,7 @@ func (s *SmartReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	//forward requests
 	//TODO: 使用封装的http.ResponseWriter替换掉这里的w
-	rsp.ServeHTTP(w, r)
+	rsp.ServeHTTP(wrapper_resp, r)
 }
 
 func (s *SmartReverseProxy) GetBackendNodeWithLoadbalance(r *http.Request) (string, error) {
