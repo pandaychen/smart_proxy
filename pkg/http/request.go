@@ -20,12 +20,12 @@ func GetClientIP(r *http.Request) (clientIP string) {
 	return clientIP
 }
 
-func CheckTcpAlive(backend_addr string) bool {
+func CheckTcpAlive(backend_addr string) (bool, error) {
 	timeout := 2 * time.Second
 	conn, err := net.DialTimeout("tcp", backend_addr, timeout)
 	if err != nil {
-		return false
+		return false, err
 	}
 	_ = conn.Close()
-	return true
+	return true, nil
 }
