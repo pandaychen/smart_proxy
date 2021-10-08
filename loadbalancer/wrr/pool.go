@@ -176,3 +176,24 @@ func (p *WrrBalancerPool) setBackendStatus(addr string, isNodeUp bool) error {
 
 	return nil
 }
+
+//返回所有节点，bad节点在先
+func (p *WrrBalancerPool) GetAllNodes() []string {
+	var (
+		bad_iplist  []string
+		good_iplist []string
+	)
+	p.RLock()
+	defer p.RUnlock()
+
+	for _, v := range p.BackendNodeList {
+		if v.Node.State.IsTrue() {
+			good_iplist = append(good_iplist, v.Node.Addr)
+		} else {
+			bad_iplist = append(bad_iplist, v.Node.Addr)
+		}
+	}
+
+	bad_iplist = append(bad_iplist, good_iplist...)
+	return bad_iplist
+}

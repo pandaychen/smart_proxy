@@ -44,8 +44,10 @@ type SmartProxyService struct {
 	//channel
 	Discovery2SchedulerChan chan backend.BackendNodeOperator //用于服务发现
 	PeerStatChan            chan backend.PeerStateOperator   //用于每次请求结果统计
-	Ctx                     context.Context
-	Cancel                  context.CancelFunc
+	HealthyCheckChan        chan backend.BackendNodeOperator //用于健康度检查结果
+
+	Ctx    context.Context
+	Cancel context.CancelFunc
 }
 
 // 创建 SmartProxyService 的所有组件
@@ -61,6 +63,7 @@ func NewSmartProxyService(proxy_config *config.SmartProxyConfig) (*SmartProxySer
 		Logger:                  logger,
 		Discovery2SchedulerChan: make(chan backend.BackendNodeOperator, 128),
 		PeerStatChan:            make(chan backend.PeerStateOperator, 128),
+		HealthyCheckChan:        make(chan backend.BackendNodeOperator, 128),
 	}
 
 	//Init all submodules
@@ -68,11 +71,12 @@ func NewSmartProxyService(proxy_config *config.SmartProxyConfig) (*SmartProxySer
 
 	sps.Discoveryer, _ = discovery.NewDiscoveryClient(logger, proxy_config, sps.Discovery2SchedulerChan)
 
-	sps.HealthChecker = healthy.NewHealthCheck(logger, proxy_config)
-
 	sps.ReverseproxyGroup, _ = reverseproxy.NewSmartReverseProxyGroup(logger, proxy_config, sps.PeerStatChan)
 
-	sps.Scheduler, _ = scheduler.NewSmartProxyScheduler(logger, sps.ReverseproxyGroup, sps.Discovery2SchedulerChan, sps.PeerStatChan)
+	//必须在sps.ReverseproxyGroup初始化之后
+	sps.Scheduler, _ = scheduler.NewSmartProxyScheduler(logger, sps.ReverseproxyGroup, sps.Discovery2SchedulerChan, sps.PeerStatChan, sps.HealthyCheckChan)
+
+	sps.HealthChecker = healthy.NewHealthCheck(logger, proxy_config, sps.ReverseproxyGroup, sps.HealthyCheckChan)
 
 	sps.Metricser = metrics.NewMetrics(logger, proxy_config, sps.ReverseproxyGroup)
 
@@ -96,7 +100,7 @@ func (s *SmartProxyService) RunLoop() error {
 	//start controller
 	s.Controller.Run()
 	//start healthychecking
-	s.HealthChecker.Run()
+	s.HealthChecker.Run(s.Ctx)
 	//start reverseproxy
 	s.ReverseproxyGroup.Run()
 	//start metrics

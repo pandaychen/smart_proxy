@@ -27,4 +27,7 @@ type BackendNodePool interface {
 
 	// set a node down status
 	DownNodeStatus(addr string)
+
+	//get all nodes
+	GetAllNodes() []string
 }

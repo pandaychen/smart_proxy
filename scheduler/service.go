@@ -16,24 +16,26 @@ var GlobalScheduler *SmartProxyScheduler
 // smartproxy controller
 type SmartProxyScheduler struct {
 	/* Backend operation channel */
-	BackendChan  chan backend.BackendNodeOperator
-	PeerStatChan chan backend.PeerStateOperator
-	Logger       *zap.Logger
-	ReverseGroup *reverseproxy.SmartReverseProxyGroup
+	BackendChan      chan backend.BackendNodeOperator
+	PeerStatChan     chan backend.PeerStateOperator
+	HealthyCheckChan chan backend.BackendNodeOperator
+	Logger           *zap.Logger
+	ReverseGroup     *reverseproxy.SmartReverseProxyGroup
 
 	//for statistics without lock
 	PeerStatus map[string]map[string]int
 	PeerMap    map[string]string //temp
 }
 
-func NewSmartProxyScheduler(logger *zap.Logger, reverse_group *reverseproxy.SmartReverseProxyGroup, dis2schChan chan backend.BackendNodeOperator, peerStatChan chan backend.PeerStateOperator) (*SmartProxyScheduler, error) {
+func NewSmartProxyScheduler(logger *zap.Logger, reverse_group *reverseproxy.SmartReverseProxyGroup, dis2schChan chan backend.BackendNodeOperator, peerStatChan chan backend.PeerStateOperator, healthyCheckChan chan backend.BackendNodeOperator) (*SmartProxyScheduler, error) {
 	sch := &SmartProxyScheduler{
-		Logger:       logger,
-		ReverseGroup: reverse_group,
-		BackendChan:  dis2schChan,
-		PeerStatChan: peerStatChan,
-		PeerStatus:   make(map[string]map[string]int),
-		PeerMap:      make(map[string]string),
+		Logger:           logger,
+		ReverseGroup:     reverse_group,
+		BackendChan:      dis2schChan,
+		PeerStatChan:     peerStatChan,
+		HealthyCheckChan: healthyCheckChan,
+		PeerStatus:       make(map[string]map[string]int),
+		PeerMap:          make(map[string]string),
 	}
 	return sch, nil
 }
@@ -69,6 +71,14 @@ func (s *SmartProxyScheduler) Run(ctx context.Context) {
 					s.PeerStatus[peerstat.Target.Addr][string(enums.BACKEND_TOTAL)]++
 				default:
 					continue
+				}
+			case check_backend := <-s.HealthyCheckChan:
+				s.Logger.Info("SchedulerLoopRun handle HealthyCheckChan", zap.Any("backend", check_backend))
+				switch check_backend.Op {
+				case enums.BACKEND_UP:
+					s.UpDownBackendNodes(check_backend.Target.ProxyName, check_backend.Target.Addr, enums.BACKEND_UP)
+				case enums.BACKEND_DOWN:
+					s.UpDownBackendNodes(check_backend.Target.ProxyName, check_backend.Target.Addr, enums.BACKEND_DOWN)
 				}
 			case <-statTicker.C:
 				s.Logger.Info("SchedulerLoopRun handle statTicker")

@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // GetClientIP acquire the client IP address
@@ -17,4 +18,14 @@ func GetClientIP(r *http.Request) (clientIP string) {
 	}
 
 	return clientIP
+}
+
+func CheckTcpAlive(backend_addr string) bool {
+	timeout := 2 * time.Second
+	conn, err := net.DialTimeout("tcp", backend_addr, timeout)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
 }

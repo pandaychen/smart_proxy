@@ -98,3 +98,21 @@ func (g *SmartReverseProxyGroup) Stop() {
 		}
 	}
 }
+
+func (g *SmartReverseProxyGroup) GetAllProxys() map[string][]string {
+	var (
+		proxymap = make(map[string][]string)
+	)
+	g.RLock()
+	defer g.RUnlock()
+	if len(g.Proxys) == 0 {
+		return nil
+	}
+	for name, rproxyserver := range g.Proxys {
+		backendlist := rproxyserver.BackendNodePool.GetAllNodes()
+		if backendlist != nil {
+			proxymap[name] = backendlist
+		}
+	}
+	return proxymap
+}
